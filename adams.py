@@ -49,6 +49,7 @@ class adams_bashforth(adams):
 
 	def __call__(self, f, a, b, alpha, h):
 		t_axis, y_axis = super().__call__(f, a, b, alpha, h)
+		
 		steps = np.array([f(t_axis[i], y_axis[i]) for i in range(self.sstep-1, -1, -1)])
 		
 		for i, t in enumerate(t_axis[self.sstep:], self.sstep):
@@ -77,6 +78,7 @@ class adams_moulton(adams):
 
 	def __call__(self, f, a, b, alpha, h):
 		t_axis, y_axis = super().__call__(f, a, b, alpha, h)
+		
 		steps = np.array([f(t_axis[i], y_axis[i]) for i in range(self.sstep-1, -1, -1)])
 
 		for i, t in enumerate(t_axis[self.sstep:], self.sstep):
@@ -89,16 +91,41 @@ class adams_moulton(adams):
 
 		return t_axis, y_axis
 
+class adams_bashorth_moulton(adams_moulton, adams_bashforth):
+	def __init__(self, sstep, sstep_xpl):
+		assert(sstep > sstep_xpl)
+		self.sstep = sstep
+		self.sstep_xpl = sstep_xpl
+		self.coeffs = self._adams_moulton__get_coeffs(sstep)
+		self.coeffs_xpl = self._adams_bashforth__get_coeffs(sstep_xpl)
 
-my_integrator = adams_moulton(12, 1e-9)
+	def __call__(self, f, a, b, alpha, h):
+		t_axis, y_axis = adams.__call__(self, f, a, b, alpha, h)
 
-t, y = my_integrator(lambda t,y: -t*y, -4, 4, .02, .008)
+		steps = np.array([f(t_axis[i], y_axis[i]) for i in range(self.sstep-1, -1, -1)])
 
+		for i, t in enumerate(t_axis[self.sstep:], self.sstep):
+			y_predicted = y_axis[i-1] + h*(steps[:self.sstep_xpl]@self.coeffs_xpl)
+			y_corrected = y_axis[i-1] + h*(f(t, y_predicted)*self.coeffs[0] + steps@self.coeffs[1:])
 
-real_y = 59.61 * np.exp(-t**2)
+			y_axis[i] = y_predicted
+
+			steps[1:] = steps[:self.sstep-1]
+			steps[0] = f(t_axis[i], y_axis[i])
+
+		return t_axis, y_axis
+
+my_integrator = adams_bashorth_moulton(5, 3)
+
+t, y = my_integrator(lambda t, y: -t*y, -4, 4, .02, .01)
+
 plt.plot(t, y)
-plt.plot(t, real_y)
 plt.show()
+
+
+
+
+
 
 
 

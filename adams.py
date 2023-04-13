@@ -92,12 +92,13 @@ class adams_moulton(adams):
 		return t_axis, y_axis
 
 class adams_bashorth_moulton(adams_moulton, adams_bashforth):
-	def __init__(self, sstep, sstep_xpl):
+	def __init__(self, sstep, sstep_xpl, tol):
 		assert(sstep > sstep_xpl)
 		self.sstep = sstep
 		self.sstep_xpl = sstep_xpl
 		self.coeffs = self._adams_moulton__get_coeffs(sstep)
 		self.coeffs_xpl = self._adams_bashforth__get_coeffs(sstep_xpl)
+		self.tol = tol
 
 	def __call__(self, f, a, b, alpha, h):
 		t_axis, y_axis = adams.__call__(self, f, a, b, alpha, h)
@@ -107,6 +108,10 @@ class adams_bashorth_moulton(adams_moulton, adams_bashforth):
 		for i, t in enumerate(t_axis[self.sstep:], self.sstep):
 			y_predicted = y_axis[i-1] + h*(steps[:self.sstep_xpl]@self.coeffs_xpl)
 			y_corrected = y_axis[i-1] + h*(f(t, y_predicted)*self.coeffs[0] + steps@self.coeffs[1:])
+			
+			while abs(y_predicted - y_corrected) > self.tol:
+				y_predicted = y_corrected
+				y_corrected = y_axis[i-1] + h*(f(t, y_predicted)*self.coeffs[0] + steps@self.coeffs[1:])
 
 			y_axis[i] = y_predicted
 
@@ -115,7 +120,7 @@ class adams_bashorth_moulton(adams_moulton, adams_bashforth):
 
 		return t_axis, y_axis
 
-my_integrator = adams_bashorth_moulton(5, 3)
+my_integrator = adams_bashorth_moulton(5, 3, 1e-10)
 
 t, y = my_integrator(lambda t, y: -t*y, -4, 4, .02, .01)
 
